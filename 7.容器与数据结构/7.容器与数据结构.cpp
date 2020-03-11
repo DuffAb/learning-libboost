@@ -7,6 +7,24 @@
 #include <boost/assign.hpp>
 //7.2
 #include <boost/dynamic_bitset.hpp>
+//7.3
+#include <boost/unordered_set.hpp>
+#include <boost/unordered_map.hpp>
+#include <boost/functional/hash.hpp>
+namespace unordered_7_3 {
+	struct demo_class
+	{
+		int a;
+		//实现unordered需要的自定义类的相等比较谓词
+		friend bool operator==(const demo_class& l, const demo_class& r) {
+			return l.a == r.a;
+		}
+	};
+	//实现unordered需要的自定义类的散列函数
+	size_t hash_value(demo_class& s) {
+		return boost::hash<int>()(s.a);
+	}
+}
 
 int main()
 {
@@ -113,7 +131,7 @@ int main()
 
 			{
 				dynamic_bitset<> db(5, BOOST_BINARY(01001));
-				db.append(BOOST_BINARY(101));
+				db.append(BOOST_BINARY(101));				//把整数转换为一个Block再追加，使得dynamic_bitset 的大小增加一个Block的长度
 				assert(db.size() == sizeof(unsigned long) * 8 + 5);
 				cout << db << endl;
 			}
@@ -170,13 +188,184 @@ int main()
 			}
 		}
 
-		//7.2.5 类型转换
+		//7.2.6 类型转换
 		{
 			dynamic_bitset<> db(10, BOOST_BINARY(1010101));
+			cout << db << endl;
 			cout << hex << db.to_ulong() << endl;	//16进制
 			cout << oct << db.to_ulong() << endl;	//8进制
 			cout << dec << db.to_ulong() << endl;	//10进制
+
+			db.append(10);							//追加一个整数
+			cout << db << endl;
+			cout << dec << db.to_ulong() << endl;	//10进制
+
+			db.push_back(1);
+			//cout << db.to_ulong() << endl;			//抛出异常
+			string str;
+			to_string(db, str);
+			cout << str << endl;
 		}
+
+		//7.2.7 集合操作
+		{
+			dynamic_bitset<> db1(5, BOOST_BINARY(10101));
+			dynamic_bitset<> db2(5, BOOST_BINARY(10010));
+
+			cout << (db1 | db2) << endl;	//并集 10111
+			cout << (db1 & db2) << endl;	//交集 10000
+			cout << (db1 - db2) << endl;	//差集 00101
+
+			dynamic_bitset<> db3(5, BOOST_BINARY(101));
+			assert(db3.is_proper_subset_of(db1));	//检测一个对象是否另一个对象的真子集
+
+			dynamic_bitset<> db4(db2);
+			assert(db4.is_subset_of(db2));			//检测一个对象是否另一个对象的子集
+			assert(!db4.is_proper_subset_of(db2));	//不是真子集
+		}
+
+		//7.2.8 综合运用
+		{
+			int n;
+			//cin >> n;
+			dynamic_bitset<> db(100);
+
+			db.set();	//置所有位为 1
+			for (dynamic_bitset<>::size_type i = db.find_next(1); i != dynamic_bitset<>::npos; i = db.find_next(i)) 
+			{
+				for (dynamic_bitset<>::size_type j = db.find_next(i); j != dynamic_bitset<>::npos; j = db.find_next(j)) //db.find_next(i) 从 i 位置开始找下一个二进制位 1
+				{
+					if (j % i == 0)
+					{
+						db[j] = 0;		//被整除，非质数
+					}
+				}
+			}
+
+			for (dynamic_bitset<>::size_type i = db.find_next(2); i != dynamic_bitset<>::npos; i = db.find_next(i))
+			{
+				cout << i << ", ";
+			}
+			cout << db << endl;
+
+		}
+	}
+
+	//7.3 unordered
+	{}
+	{
+		using namespace boost;
+		//7.3.2 散列集合的用法
+		{
+			{
+				unordered_set<int> s = { 1,2,3,4,5 };	//初始化数据
+
+				for (auto x : s) {						//使用 for 遍历集合
+					cout << x << " ";
+				}
+				cout << endl;
+				cout << s.size() << endl;				//获取容器大小
+
+				s.clear();								//清空集合
+				cout << s.empty() << endl;				//判断集合是否空
+
+				s.insert(8);
+				s.insert(45);							//使用 insert() 函数
+				cout << s.size() << endl;
+				cout << *s.find(8) << endl;				//查找元素
+
+				s.erase(45);							//删除元素
+			}
+
+			//C++11标准
+			{
+				typedef complex<double> complex_t;	//使用标准库的复数类型
+				unordered_set<complex_t> s;			//散列容器容纳复数
+
+				s.emplace(1.0, 2.0);				//直接使用多个参数构造袁术并插入
+				s.emplace(3.0, 4.0);
+
+				for (auto & x : s) {
+					cout << x << ", ";
+				}
+				cout << endl;
+
+				s.emplace_hint(s.begin(), 5.0, 6.0);//在容器前端插入，不能保证位置
+				for (auto& x : s) {
+					cout << x << ",";
+				}
+			}
+		}
+		
+		//7.3.4 散列映射的用法
+		{
+			//基本用法
+			{
+				using namespace boost::assign;
+
+				unordered_map<int, string> um = map_list_of(1, "one")(2, "two")(3, "three");//使用 assign 初始化
+
+				um.insert(make_pair(10, "ten"));		//可以使用 insert() 函数
+				cout << um[10] << endl;
+				um[11] = "eleven";						//关联数组用法
+				um[15] = "fifteen";
+				um[15] = "fifteen2";
+
+				auto p = um.begin();
+				for (; p != um.end(); ++p) {
+					cout << p->first << "-" << p->second << ",";
+				}
+				cout << endl;
+
+				um.erase(11);							//删除键值为 11 的元素
+				cout << um.size() << endl;
+			}
+
+			//C++11标准
+			{
+				typedef complex<double> complex_t;			//使用标准库的复数类型
+				typedef unordered_map<int, complex_t> um_t;	//散列映射类型
+				um_t s;
+
+				s.emplace(boost::unordered::piecewise_construct,	//分段构造 pair
+					make_tuple(1), make_tuple(1.0, 2.0));			//使用 make_tuple
+				s.emplace(boost::unordered::piecewise_construct,	//分段构造 pair
+					make_tuple(3), make_tuple(3.0, 4.0));			//使用 make_tuple
+
+				for (auto& x : s) {
+					cout << x.first << "<->" << x.second << ",";
+				}
+				cout << endl;
+
+				s.emplace_hint(s.begin(),							//在前端放置元素
+					boost::unordered::piecewise_construct,
+					make_tuple(5), make_tuple(5.0, 6.0));
+				for (auto& x : s) {
+					cout << x.first << "<->" << x.second << ",";
+				}
+			}
+		}
+
+		//7.3.5 高级议题
+		{
+			using namespace unordered_7_3;
+			using namespace boost::assign;
+
+			unordered_set<int> us = (list_of(1), 2, 3, 4);
+			cout << us.bucket_count() << endl;
+
+			for (size_t i = 0; i < us.bucket_count(); ++i) {//访问每个桶
+				cout << us.bucket_size(i) << ",";
+			}
+
+			unordered_set<int> us1(100);	//要求使用 100 个桶存储数据
+			us1.rehash(200);				//改为使用 200 个桶
+
+			unordered_set<demo_class> us3;
+		}
+	}
+	{
+
 	}
     std::cout << "Hello World!\n";
 }
